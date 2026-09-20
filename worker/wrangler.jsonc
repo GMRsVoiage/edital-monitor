@@ -13,5 +13,10 @@
   "vars": {
     "DAILY_SEARCH_LIMIT": "30",
     "ALLOWED_ORIGIN": "*"
+  },
+  "secrets": {
+    "required": [
+      "INGEST_TOKEN"
+    ]
   }
 }
