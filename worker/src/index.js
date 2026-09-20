@@ -201,15 +201,27 @@ async function ingest(request, env) {
 
   if (!doc?.id) return json({ error: "Falha após ingestão." }, 500);
 
-  const statements = [
-    env.DB.prepare("DELETE FROM pages WHERE document_id = ?").bind(doc.id),
-    ...pages.map((page) =>
-      env.DB.prepare(
-        "INSERT INTO pages (document_id, page_number, text) VALUES (?, ?, ?)"
-      ).bind(doc.id, page.page_number, page.text)
-    )
-  ];
-  await env.DB.batch(statements);
+  await env.DB.prepare("DELETE FROM pages WHERE document_id = ?").bind(doc.id).run();
+
+  // D1 Free permite até 100 parâmetros por query e 50 queries D1 por
+  // invocação. Agrupamos até 33 páginas por INSERT (99 parâmetros) para
+  // suportar PDFs grandes sem gerar uma query separada para cada página.
+  const pageChunks = [];
+  for (let i = 0; i < pages.length; i += 33) {
+    pageChunks.push(pages.slice(i, i + 33));
+  }
+
+  for (const chunk of pageChunks) {
+    const placeholders = chunk.map(() => "(?, ?, ?)").join(", ");
+    const values = [];
+    for (const page of chunk) {
+      values.push(doc.id, page.page_number, page.text);
+    }
+
+    await env.DB.prepare(
+      `INSERT INTO pages (document_id, page_number, text) VALUES ${placeholders}`
+    ).bind(...values).run();
+  }
 
   await env.DB.prepare(
     "INSERT INTO ingest_log (source_page_url, status, detail) VALUES (?, 'success', ?)"
