@@ -116,6 +116,19 @@ async function search(request, env) {
   }
 }
 
+async function health(env) {
+  try {
+    const row = await env.DB.prepare("SELECT 1 AS ok").first();
+    if (row?.ok !== 1) {
+      return json({ ok: false, database: "error" }, 503, cors(env));
+    }
+
+    return json({ ok: true, database: "ok" }, 200, cors(env));
+  } catch {
+    return json({ ok: false, database: "error" }, 503, cors(env));
+  }
+}
+
 async function stats(env) {
   const [docs, pages, latest] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS total FROM documents").first(),
@@ -238,7 +251,7 @@ export default {
     if (request.method === "GET" && path === "/") {
       return json({ name: "Edital Monitor API", version: "0.1.0" }, 200, cors(env));
     }
-    if (request.method === "GET" && path === "/health") return json({ ok: true }, 200, cors(env));
+    if (request.method === "GET" && path === "/health") return health(env);
     if (request.method === "GET" && path === "/stats") return json(await stats(env), 200, cors(env));
     if (request.method === "GET" && path === "/search") return search(request, env);
     if (request.method === "GET" && path === "/admin/known") return known(request, env);
