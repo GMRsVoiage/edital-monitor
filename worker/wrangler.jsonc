@@ -16,7 +16,8 @@
   },
   "secrets": {
     "required": [
-      "INGEST_TOKEN"
+      "INGEST_TOKEN",
+      "RATE_LIMIT_SALT"
     ]
   }
 }
