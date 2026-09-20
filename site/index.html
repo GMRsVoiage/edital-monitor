@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Pesquise gratuitamente em Boletins Oficiais de Telêmaco Borba.">
+  <title>Edital Monitor</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script src="config.js"></script>
+  <script src="assets/js/search.js" defer></script>
+</head>
+<body>
+  <div class="aqua-bg" aria-hidden="true"></div>
+  <header class="gmrs-header">
+    <a class="brand" href="./">Edital Monitor</a>
+    <nav>
+      <a href="sobre.html">Sobre</a>
+      <a href="privacidade.html">Privacidade</a>
+      <button id="theme-toggle" class="theme-button" type="button" aria-label="Alternar tema">◐</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Acesso público à informação</p>
+      <h1>Encontre seu nome em Boletins Oficiais.</h1>
+      <p class="lead">Pesquisa gratuita e sem cadastro. Abra sempre o documento original para confirmar a informação.</p>
+
+      <form id="search-form" class="search-box">
+        <label for="search-input">Nome ou termo</label>
+        <div class="search-row">
+          <input id="search-input" type="search" minlength="3" maxlength="100" autocomplete="off" placeholder="Ex.: João da Silva" required>
+          <button type="submit">Pesquisar</button>
+        </div>
+        <p class="search-help">Resultados dependem da qualidade do texto disponível no PDF.</p>
+      </form>
+    </section>
+
+    <section class="status-grid">
+      <article class="gmrs-card"><span>Documentos</span><strong id="stat-documents">—</strong></article>
+      <article class="gmrs-card"><span>Páginas indexadas</span><strong id="stat-pages">—</strong></article>
+      <article class="gmrs-card"><span>Última publicação</span><strong id="stat-latest">—</strong></article>
+    </section>
+
+    <section id="feedback" class="feedback" aria-live="polite"></section>
+    <section id="results" class="results" aria-live="polite"></section>
+
+    <section class="gmrs-card support-card" id="apoie">
+      <p class="eyebrow">Projeto independente</p>
+      <h2>Ajude a manter o buscador gratuito</h2>
+      <p>O acesso não depende de pagamento. Um meio de apoio voluntário poderá ser adicionado aqui futuramente.</p>
+    </section>
+
+    <section class="source-note">
+      <p>Fonte inicial: <a href="https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial" target="_blank" rel="noopener noreferrer">Boletim Oficial da Prefeitura de Telêmaco Borba</a>.</p>
+      <p>Projeto independente, sem vínculo oficial com a Prefeitura.</p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Edital Monitor · Código aberto</span>
+    <a href="https://github.com/GMRsVoiage/edital-monitor">GitHub</a>
+  </footer>
+</body>
+</html>

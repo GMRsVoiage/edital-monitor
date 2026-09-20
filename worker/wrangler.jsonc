@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "edital-monitor-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-20",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "edital-monitor",
+      "database_id": "SUBSTITUA_PELO_DATABASE_ID"
+    }
+  ],
+  "vars": {
+    "DAILY_SEARCH_LIMIT": "30",
+    "ALLOWED_ORIGIN": "*"
+  }
+}
