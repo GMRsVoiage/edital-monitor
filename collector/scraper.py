@@ -9,7 +9,8 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import date
-from urllib.parse import urljoin
+from html import unescape
+from urllib.parse import parse_qs, unquote, urldefrag, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -17,7 +18,10 @@ from curl_cffi import requests as browser_requests
 from pypdf import PdfReader
 
 DEFAULT_SOURCE = "https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial"
-DIRECT_PDF_TEMPLATE = "https://telemacoborba.pr.gov.br/images/boletim/Edicao{edition}.pdf"
+DIRECT_PDF_TEMPLATES = (
+    "https://telemacoborba.pr.gov.br/images/boletim/Edicao{edition}.pdf",
+    "https://telemacoborba.pr.gov.br/images/boletim/Edicao-{edition}.pdf",
+)
 
 MONTHS = {
     "janeiro": 1, "fevereiro": 2, "março": 3, "abril": 4,
@@ -77,25 +81,7 @@ def parse_pt_date(text: str) -> str | None:
         return None
 
 
-def listing_pages(source_url: str, max_pages: int) -> list[str]:
-    urls = [source_url]
-    if max_pages <= 1:
-        return urls
-    response = get(source_url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    for link in soup.select("a[href]"):
-        label = " ".join(link.stripped_strings).strip()
-        href = urljoin(response.url, link["href"])
-        if label.isdigit() and href not in urls:
-            urls.append(href)
-            if len(urls) >= max_pages:
-                break
-    return urls
-
-
-def discover_editions(url: str) -> list[Edition]:
-    response = get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
+def editions_from_soup(soup: BeautifulSoup, base_url: str) -> list[Edition]:
     found: dict[str, Edition] = {}
 
     for link in soup.select("a[href]"):
@@ -103,7 +89,7 @@ def discover_editions(url: str) -> list[Edition]:
         match = re.search(r"\bEdi[cç][aã]o\s+(\d+)", title, re.I)
         if not match:
             continue
-        href = urljoin(response.url, link["href"])
+        href, _ = urldefrag(urljoin(base_url, link["href"]))
         if "boletim-oficial" not in href:
             continue
         container = link.find_parent("tr") or link.parent
@@ -113,29 +99,99 @@ def discover_editions(url: str) -> list[Edition]:
     return list(found.values())
 
 
+def pagination_links(soup: BeautifulSoup, base_url: str) -> list[str]:
+    links: list[str] = []
+    for link in soup.select("a[href]"):
+        label = " ".join(link.stripped_strings).strip()
+        folded = label.casefold()
+        if not (label.isdigit() or folded in {"próximo", "proximo", "next"}):
+            continue
+
+        href, _ = urldefrag(urljoin(base_url, link["href"]))
+        if "boletim-oficial" not in href:
+            continue
+        if href not in links:
+            links.append(href)
+    return links
+
+
+def crawl_editions(source_url: str, max_pages: int) -> list[Edition]:
+    source_url, _ = urldefrag(source_url)
+    queue = [source_url]
+    queued = {source_url}
+    visited: set[str] = set()
+    found: dict[str, Edition] = {}
+
+    while queue and len(visited) < max_pages:
+        requested_url = queue.pop(0)
+        response = get(requested_url)
+        page_url, _ = urldefrag(response.url)
+        if page_url in visited:
+            continue
+
+        visited.add(page_url)
+        soup = BeautifulSoup(response.text, "html.parser")
+        page_editions = editions_from_soup(soup, page_url)
+
+        for item in page_editions:
+            found[item.source_page_url] = item
+
+        print(
+            f"[list] página {len(visited)}/{max_pages}: "
+            f"{len(page_editions)} edições, {len(found)} únicas"
+        )
+
+        for href in pagination_links(soup, page_url):
+            if href not in visited and href not in queued:
+                queued.add(href)
+                queue.append(href)
+
+    if len(visited) < max_pages and not queue:
+        print(
+            f"[list] paginação terminou após {len(visited)} página(s); "
+            "não há mais links de paginação."
+        )
+
+    return list(found.values())
+
+
 def pdf_candidates(detail_url: str) -> list[str]:
     response = get(detail_url)
     soup = BeautifulSoup(response.text, "html.parser")
     values: list[str] = []
 
+    def add(raw: str) -> None:
+        decoded = unescape(raw).replace("\\/", "/")
+        candidate = urljoin(response.url, decoded)
+        parsed = urlparse(candidate)
+
+        query = parse_qs(parsed.query)
+        for key in ("file", "url", "src"):
+            for nested in query.get(key, []):
+                nested_url = urljoin(response.url, unquote(nested))
+                if ".pdf" in nested_url.lower() and nested_url not in values:
+                    values.append(nested_url)
+
+        if (".pdf" in candidate.lower() or "boletim" in candidate.lower()) and candidate not in values:
+            values.append(candidate)
+
     for tag_name, attr in [("a", "href"), ("iframe", "src"), ("embed", "src"), ("object", "data")]:
         for tag in soup.select(f"{tag_name}[{attr}]"):
             raw = tag.get(attr)
             if raw:
-                candidate = urljoin(response.url, raw)
-                if ".pdf" in candidate.lower() or "boletim" in candidate.lower():
-                    values.append(candidate)
+                add(raw)
 
     pattern = r"""(?:https?:)?//[^"'<>\s]+\.pdf(?:\?[^"'<>\s]*)?|/[A-Za-z0-9_./%+-]+\.pdf(?:\?[^"'<>\s]*)?"""
-    for raw in re.findall(pattern, response.text, re.I):
-        values.append(urljoin(response.url, raw))
+    bodies = {
+        response.text,
+        unescape(response.text),
+        unquote(unescape(response.text)),
+    }
+    for body in bodies:
+        for raw in re.findall(pattern, body, re.I):
+            add(raw)
 
-    unique: list[str] = []
-    for value in values:
-        value = value.replace("&amp;", "&")
-        if value not in unique:
-            unique.append(value)
-    return unique
+    return values
 
 
 def download_pdf(candidates: list[str], max_bytes: int) -> tuple[str, bytes]:
@@ -159,15 +215,27 @@ def download_pdf(candidates: list[str], max_bytes: int) -> tuple[str, bytes]:
 
 def download_edition_pdf(item: Edition, max_bytes: int) -> tuple[str, bytes]:
     direct_error: Exception | None = None
+    plain_title = bool(
+        item.edition
+        and re.fullmatch(r"\s*Edi[cç][aã]o\s+\d+\s*", item.title, re.I)
+    )
 
-    if item.edition and item.edition.isdigit():
-        direct_url = DIRECT_PDF_TEMPLATE.format(edition=item.edition)
-        print(f"  -> tentando PDF direto: {direct_url}")
+    if item.edition and item.edition.isdigit() and plain_title:
+        direct_candidates = [
+            template.format(edition=item.edition)
+            for template in DIRECT_PDF_TEMPLATES
+        ]
+        print(
+            "  -> tentando PDF direto: "
+            + " | ".join(direct_candidates)
+        )
         try:
-            return download_pdf([direct_url], max_bytes)
+            return download_pdf(direct_candidates, max_bytes)
         except Exception as exc:
             direct_error = exc
             print(f"  -> PDF direto falhou; tentando página da edição: {exc}")
+    elif item.edition:
+        print("  -> edição com sufixo/complemento; usando a página oficial como fonte do PDF")
 
     try:
         candidates = pdf_candidates(item.source_page_url)
@@ -244,18 +312,32 @@ def main() -> int:
         print("Defina EDITAL_API_URL e EDITAL_API_TOKEN.", file=sys.stderr)
         return 2
 
-    editions: dict[str, Edition] = {}
-    for page_url in listing_pages(args.source_url, max(1, args.max_list_pages)):
-        for item in discover_editions(page_url):
-            editions[item.source_page_url] = item
+    editions = crawl_editions(args.source_url, max(1, args.max_list_pages))
+    print(f"[list] total encontrado: {len(editions)} edição(ões)")
 
-    imported = errors = 0
-    for item in list(editions.values())[: max(1, args.max_documents)]:
+    imported = 0
+    errors = 0
+    already_known = 0
+    new_processed = 0
+    max_new = max(1, args.max_documents)
+
+    for item in editions:
+        print(f"[check] {item.title}")
+
         try:
-            print(f"[check] {item.title}")
             if not args.force and known(api, token, item.source_page_url):
+                already_known += 1
                 print("  -> já conhecido")
                 continue
+
+            if new_processed >= max_new:
+                print(
+                    f"[limit] limite de {max_new} documento(s) novo(s) atingido; "
+                    "encerrarei este lote."
+                )
+                break
+
+            new_processed += 1
 
             final_pdf_url, pdf = download_edition_pdf(
                 item,
@@ -279,9 +361,17 @@ def main() -> int:
         except Exception as exc:
             errors += 1
             print(f"  -> erro: {exc}", file=sys.stderr)
+
         time.sleep(max(0.0, args.delay_seconds))
 
-    print(f"Concluído. importados={imported}, erros={errors}")
+    print(
+        "Concluído. "
+        f"encontrados={len(editions)}, "
+        f"já_conhecidos={already_known}, "
+        f"novos_processados={new_processed}, "
+        f"importados={imported}, "
+        f"erros={errors}"
+    )
     return 1 if errors and not imported else 0
 
 
