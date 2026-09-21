@@ -3,6 +3,10 @@
   "name": "edital-monitor-api",
   "main": "src/index.js",
   "compatibility_date": "2026-09-20",
+  
+  "workers_dev": false,
+  "preview_urls": false,
+
   "d1_databases": [
     {
       "binding": "DB",
@@ -12,7 +16,7 @@
   ],
   "vars": {
     "DAILY_SEARCH_LIMIT": "30",
-    "ALLOWED_ORIGIN": "*"
+    "ALLOWED_ORIGIN": "https://editais.gmrsvoiage.com.br"
   },
   "secrets": {
     "required": [
