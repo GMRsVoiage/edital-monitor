@@ -24,7 +24,16 @@ MONTHS = {
 }
 
 SESSION = requests.Session()
-SESSION.headers["User-Agent"] = "EditalMonitor/0.1 (https://github.com/GMRsVoiage/edital-monitor)"
+SESSION.headers.update({
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/153.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+    "Cache-Control": "no-cache",
+})
 
 
 @dataclass(frozen=True)
