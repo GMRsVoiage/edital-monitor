@@ -15,6 +15,10 @@ on:
         description: "Intervalo entre documentos novos"
         required: false
         default: "2"
+      list_delay_seconds:
+        description: "Intervalo entre páginas da listagem"
+        required: false
+        default: "1"
 
 permissions:
   contents: read
@@ -46,4 +50,4 @@ jobs:
           EDITAL_API_TOKEN: ${{ secrets.EDITAL_API_TOKEN }}
           BOLETIM_SOURCE_URL: https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial
         run: |
-          & ".\.venv\Scripts\python.exe" collector/scraper.py --max-list-pages "${{ github.event.inputs.max_list_pages || '57' }}" --max-documents "${{ github.event.inputs.max_documents || '100' }}" --delay-seconds "${{ github.event.inputs.delay_seconds || '2' }}"
+          & ".\.venv\Scripts\python.exe" collector/scraper.py --max-list-pages "${{ github.event.inputs.max_list_pages || '57' }}" --max-documents "${{ github.event.inputs.max_documents || '100' }}" --delay-seconds "${{ github.event.inputs.delay_seconds || '2' }}" --list-delay-seconds "${{ github.event.inputs.list_delay_seconds || '1' }}"
