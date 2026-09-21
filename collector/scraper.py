@@ -54,7 +54,7 @@ def get(url: str, timeout: int = 30):
     if response.status_code == 403:
         server = response.headers.get("server", "desconhecido")
         content_type = response.headers.get("content-type", "desconhecido")
-        body = re.sub(r"\\s+", " ", response.text[:300]).strip()
+        body = re.sub(r"\s+", " ", response.text[:300]).strip()
         raise RuntimeError(
             "Fonte recusou o coletor com HTTP 403 "
             f"(server={server}, content-type={content_type}, body={body!r})"
