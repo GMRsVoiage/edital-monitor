@@ -13,6 +13,7 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
+from curl_cffi import requests as browser_requests
 from pypdf import PdfReader
 
 DEFAULT_SOURCE = "https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial"
@@ -23,17 +24,16 @@ MONTHS = {
     "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
 }
 
-SESSION = requests.Session()
-SESSION.headers.update({
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/153.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-    "Cache-Control": "no-cache",
-})
+SOURCE_SESSION = browser_requests.Session(
+    impersonate="chrome",
+    retry=2,
+    headers={
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Cache-Control": "no-cache",
+    },
+)
+API_SESSION = requests.Session()
+API_SESSION.headers["User-Agent"] = "EditalMonitorCollector/0.1"
 
 
 @dataclass(frozen=True)
@@ -44,8 +44,21 @@ class Edition:
     source_page_url: str
 
 
-def get(url: str, timeout: int = 30) -> requests.Response:
-    response = SESSION.get(url, timeout=timeout, allow_redirects=True)
+def get(url: str, timeout: int = 30):
+    response = SOURCE_SESSION.get(
+        url,
+        timeout=timeout,
+        allow_redirects=True,
+        referer="https://telemacoborba.pr.gov.br/",
+    )
+    if response.status_code == 403:
+        server = response.headers.get("server", "desconhecido")
+        content_type = response.headers.get("content-type", "desconhecido")
+        body = re.sub(r"\\s+", " ", response.text[:300]).strip()
+        raise RuntimeError(
+            "Fonte recusou o coletor com HTTP 403 "
+            f"(server={server}, content-type={content_type}, body={body!r})"
+        )
     response.raise_for_status()
     return response
 
@@ -164,7 +177,7 @@ def headers(token: str) -> dict[str, str]:
 
 
 def known(api: str, token: str, source_url: str) -> bool:
-    response = SESSION.get(
+    response = API_SESSION.get(
         api.rstrip("/") + "/admin/known",
         params={"source_page_url": source_url},
         headers=headers(token),
@@ -175,7 +188,7 @@ def known(api: str, token: str, source_url: str) -> bool:
 
 
 def ingest(api: str, token: str, payload: dict) -> None:
-    response = SESSION.post(
+    response = API_SESSION.post(
         api.rstrip("/") + "/admin/ingest",
         json=payload,
         headers=headers(token),
