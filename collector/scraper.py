@@ -115,7 +115,11 @@ def pagination_links(soup: BeautifulSoup, base_url: str) -> list[str]:
     return links
 
 
-def crawl_editions(source_url: str, max_pages: int) -> list[Edition]:
+def crawl_editions(
+    source_url: str,
+    max_pages: int,
+    list_delay_seconds: float,
+) -> list[Edition]:
     source_url, _ = urldefrag(source_url)
     queue = [source_url]
     queued = {source_url}
@@ -146,6 +150,9 @@ def crawl_editions(source_url: str, max_pages: int) -> list[Edition]:
                 queued.add(href)
                 queue.append(href)
 
+        if queue and len(visited) < max_pages:
+            time.sleep(max(0.0, list_delay_seconds))
+
     if len(visited) < max_pages and not queue:
         print(
             f"[list] paginação terminou após {len(visited)} página(s); "
@@ -160,7 +167,7 @@ def pdf_candidates(detail_url: str) -> list[str]:
     soup = BeautifulSoup(response.text, "html.parser")
     values: list[str] = []
 
-    def add(raw: str) -> None:
+    def add(raw: str, allow_viewer: bool = False) -> None:
         decoded = unescape(raw).replace("\\/", "/")
         candidate = urljoin(response.url, decoded)
         parsed = urlparse(candidate)
@@ -172,14 +179,18 @@ def pdf_candidates(detail_url: str) -> list[str]:
                 if ".pdf" in nested_url.lower() and nested_url not in values:
                     values.append(nested_url)
 
-        if (".pdf" in candidate.lower() or "boletim" in candidate.lower()) and candidate not in values:
+        lower_candidate = candidate.lower()
+        should_add = ".pdf" in lower_candidate
+        if allow_viewer and ("viewer" in lower_candidate or "boletim" in lower_candidate):
+            should_add = True
+        if should_add and candidate not in values:
             values.append(candidate)
 
     for tag_name, attr in [("a", "href"), ("iframe", "src"), ("embed", "src"), ("object", "data")]:
         for tag in soup.select(f"{tag_name}[{attr}]"):
             raw = tag.get(attr)
             if raw:
-                add(raw)
+                add(raw, allow_viewer=tag_name in {"iframe", "embed", "object"})
 
     pattern = r"""(?:https?:)?//[^"'<>\s]+\.pdf(?:\?[^"'<>\s]*)?|/[A-Za-z0-9_./%+-]+\.pdf(?:\?[^"'<>\s]*)?"""
     bodies = {
@@ -303,6 +314,7 @@ def main() -> int:
     parser.add_argument("--max-documents", type=int, default=25)
     parser.add_argument("--max-pdf-mb", type=int, default=50)
     parser.add_argument("--delay-seconds", type=float, default=2.0)
+    parser.add_argument("--list-delay-seconds", type=float, default=1.0)
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
@@ -312,7 +324,11 @@ def main() -> int:
         print("Defina EDITAL_API_URL e EDITAL_API_TOKEN.", file=sys.stderr)
         return 2
 
-    editions = crawl_editions(args.source_url, max(1, args.max_list_pages))
+    editions = crawl_editions(
+        args.source_url,
+        max(1, args.max_list_pages),
+        args.list_delay_seconds,
+    )
     print(f"[list] total encontrado: {len(editions)} edição(ões)")
 
     imported = 0
