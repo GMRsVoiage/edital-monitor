@@ -1,0 +1,49 @@
+name: Backfill boletins
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_list_pages:
+        description: "Quantidade máxima de páginas da listagem"
+        required: false
+        default: "57"
+      max_documents:
+        description: "Máximo de documentos novos por lote"
+        required: false
+        default: "100"
+      delay_seconds:
+        description: "Intervalo entre documentos novos"
+        required: false
+        default: "2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edital-monitor-collector
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar Python
+        shell: powershell
+        run: |
+          py -3.12 --version
+          py -3.12 -m venv .venv
+          & ".\.venv\Scripts\python.exe" -m pip install --upgrade pip
+          & ".\.venv\Scripts\python.exe" -m pip install -r collector/requirements.txt
+
+      - name: Backfill histórico
+        shell: powershell
+        env:
+          EDITAL_API_URL: ${{ secrets.EDITAL_API_URL }}
+          EDITAL_API_TOKEN: ${{ secrets.EDITAL_API_TOKEN }}
+          BOLETIM_SOURCE_URL: https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial
+        run: |
+          & ".\.venv\Scripts\python.exe" collector/scraper.py --max-list-pages "${{ github.event.inputs.max_list_pages || '57' }}" --max-documents "${{ github.event.inputs.max_documents || '100' }}" --delay-seconds "${{ github.event.inputs.delay_seconds || '2' }}"
