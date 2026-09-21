@@ -17,6 +17,7 @@ from curl_cffi import requests as browser_requests
 from pypdf import PdfReader
 
 DEFAULT_SOURCE = "https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial"
+DIRECT_PDF_TEMPLATE = "https://telemacoborba.pr.gov.br/images/boletim/Edicao{edition}.pdf"
 
 MONTHS = {
     "janeiro": 1, "fevereiro": 2, "março": 3, "abril": 4,
@@ -148,9 +149,38 @@ def download_pdf(candidates: list[str], max_bytes: int) -> tuple[str, bytes]:
             content_type = response.headers.get("content-type", "").lower()
             if content.startswith(b"%PDF") or "application/pdf" in content_type:
                 return response.url, content
+            raise ValueError(
+                f"Resposta não é PDF (content-type={content_type or 'desconhecido'})"
+            )
         except Exception as exc:
             last_error = exc
     raise RuntimeError(f"Nenhum PDF válido encontrado. Último erro: {last_error}")
+
+
+def download_edition_pdf(item: Edition, max_bytes: int) -> tuple[str, bytes]:
+    direct_error: Exception | None = None
+
+    if item.edition and item.edition.isdigit():
+        direct_url = DIRECT_PDF_TEMPLATE.format(edition=item.edition)
+        print(f"  -> tentando PDF direto: {direct_url}")
+        try:
+            return download_pdf([direct_url], max_bytes)
+        except Exception as exc:
+            direct_error = exc
+            print(f"  -> PDF direto falhou; tentando página da edição: {exc}")
+
+    try:
+        candidates = pdf_candidates(item.source_page_url)
+        if not candidates:
+            raise RuntimeError("Página da edição não revelou candidatos de PDF")
+        return download_pdf(candidates, max_bytes)
+    except Exception as fallback_error:
+        if direct_error:
+            raise RuntimeError(
+                f"PDF direto falhou ({direct_error}); fallback também falhou "
+                f"({fallback_error})"
+            ) from fallback_error
+        raise
 
 
 def extract_pages(data: bytes) -> tuple[list[dict], str]:
@@ -204,6 +234,7 @@ def main() -> int:
     parser.add_argument("--max-list-pages", type=int, default=1)
     parser.add_argument("--max-documents", type=int, default=25)
     parser.add_argument("--max-pdf-mb", type=int, default=50)
+    parser.add_argument("--delay-seconds", type=float, default=2.0)
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
@@ -226,8 +257,8 @@ def main() -> int:
                 print("  -> já conhecido")
                 continue
 
-            final_pdf_url, pdf = download_pdf(
-                pdf_candidates(item.source_page_url),
+            final_pdf_url, pdf = download_edition_pdf(
+                item,
                 args.max_pdf_mb * 1024 * 1024,
             )
             digest = hashlib.sha256(pdf).hexdigest()
@@ -248,7 +279,7 @@ def main() -> int:
         except Exception as exc:
             errors += 1
             print(f"  -> erro: {exc}", file=sys.stderr)
-        time.sleep(0.5)
+        time.sleep(max(0.0, args.delay_seconds))
 
     print(f"Concluído. importados={imported}, erros={errors}")
     return 1 if errors and not imported else 0
