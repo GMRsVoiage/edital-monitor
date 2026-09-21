@@ -21,17 +21,23 @@ jobs:
   collect:
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: collector/requirements.txt
-      - run: pip install -r collector/requirements.txt
+
+      - name: Preparar Python
+        shell: powershell
+        run: |
+          py -3.12 --version
+          py -3.12 -m venv .venv
+          & ".\.venv\Scripts\python.exe" -m pip install --upgrade pip
+          & ".\.venv\Scripts\python.exe" -m pip install -r collector/requirements.txt
+
       - name: Coletar
+        shell: powershell
         env:
           EDITAL_API_URL: ${{ secrets.EDITAL_API_URL }}
           EDITAL_API_TOKEN: ${{ secrets.EDITAL_API_TOKEN }}
           BOLETIM_SOURCE_URL: https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial
-        run: python collector/scraper.py --max-list-pages "${{ github.event.inputs.max_list_pages || '1' }}" --max-documents 25 --delay-seconds 2
+        run: |
+          & ".\.venv\Scripts\python.exe" collector/scraper.py --max-list-pages "${{ github.event.inputs.max_list_pages || '1' }}" --max-documents 25 --delay-seconds 2
