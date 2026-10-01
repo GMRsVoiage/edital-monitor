@@ -246,6 +246,8 @@ Mais detalhes:
 - [SECURITY.md](SECURITY.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/deployment.md](docs/deployment.md)
+- [Guia de desenvolvimento e validação](docs/DEVELOPMENT.md)
+- [Orientações para agentes de IA](AGENTS.md)
 
 ## Fonte inicial
 
