@@ -1,10 +1,10 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Pesquise nomes e termos nos Boletins Oficiais de Telêmaco Borba/PR. Gratuito, público e sem cadastro.">
-  <meta name="theme-color" content="#7ccdf4">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Pesquise nomes e termos nos Boletins Oficiais de Telêmaco Borba/PR. Gratuito, público e sem cadastro.">
+  <meta name="theme-color" content="#0b7aa8">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="https://editais.gmrsvoiage.com.br/">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -26,108 +26,143 @@
   <meta name="twitter:description" content="Pesquise nomes e termos nos Boletins Oficiais de Telêmaco Borba/PR. Gratuito, público e sem cadastro.">
   <meta name="twitter:image" content="https://editais.gmrsvoiage.com.br/assets/social-preview.png">
   <meta name="twitter:image:alt" content="Edital Monitor — pesquisa pública em Boletins Oficiais de Telêmaco Borba/PR">
-  <title>Edital Monitor</title>
+  <title>Edital Monitor | Boletim Oficial de Telêmaco Borba/PR</title>
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="config.js"></script>
   <script src="assets/js/search.js" defer></script>
 </head>
-<body class="app-page">
-  <div class="aqua-scene" aria-hidden="true">
-    <span class="sun-glow"></span>
-    <span class="cloud cloud-one"></span>
-    <span class="cloud cloud-two"></span>
-    <span class="hill hill-one"></span>
-    <span class="hill hill-two"></span>
-    <span class="water"></span>
-    <span class="aqua-bubble bubble-one"></span>
-    <span class="aqua-bubble bubble-two"></span>
-    <span class="aqua-bubble bubble-three"></span>
+<body class="aero-canvas">
+  <a class="skip-link visually-hidden" href="#conteudo-principal">Ir para o conteúdo principal</a>
+
+  <div class="aero-scene" aria-hidden="true">
+    <span class="aero-horizon"></span>
+    <span class="aero-orb aero-orb--tl"></span>
+    <span class="aero-orb aero-orb--br"></span>
   </div>
 
-  <a class="scene-brand" href="https://gmrsvoiage.com.br" target="_blank" rel="noopener noreferrer" aria-label="GMRsVoiage">
-    GMRsVoiage
-  </a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="site-brand" href="./">
+        <img class="brand-mark" src="favicon.svg" alt="" width="40" height="40">
+        <span class="brand-text">
+          <span class="brand-name">Edital Monitor</span>
+          <span class="brand-sub">Boletim Oficial · Telêmaco Borba/PR</span>
+        </span>
+      </a>
 
-  <main class="desktop-stage">
-    <section class="aero-window" aria-label="Edital Monitor">
-      <div class="aero-titlebar">
-        <div class="window-title">
-          <span class="window-orb" aria-hidden="true"></span>
-          <span>Edital Monitor — GMRsVoiage</span>
+      <nav class="aero-capsule-nav" aria-label="Navegação principal">
+        <a href="./" aria-current="page">Pesquisa</a>
+        <a href="sobre.html">Sobre</a>
+        <a href="privacidade.html">Privacidade</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-container">
+    <section class="hero-panel">
+      <p class="eyebrow">Acesso público à informação · Sem cadastro</p>
+      <h1 id="conteudo-principal" tabindex="-1">Pesquise nos Boletins Oficiais de Telêmaco Borba</h1>
+      <p class="lead">Consulte nomes, portarias, licitações e termos publicados nas edições indexadas de forma rápida, gratuita e aberta.</p>
+
+      <search>
+        <form id="search-form" class="search-form">
+          <label class="search-label" for="search-input">Nome ou termo publicado</label>
+          <p id="search-hint" class="search-hint">Digite de 3 a 100 caracteres (ex.: João da Silva, pregão, nomeação). Os trechos indicam ocorrências encontradas; confirme sempre no PDF oficial.</p>
+          <div class="search-row">
+            <input
+              id="search-input"
+              name="q"
+              type="search"
+              minlength="3"
+              maxlength="100"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="none"
+              spellcheck="false"
+              enterkeyhint="search"
+              aria-describedby="search-hint"
+              data-error="search-error"
+              placeholder="Ex.: João da Silva"
+              required
+            >
+            <button id="search-submit" class="aero-gel-btn" type="submit">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"/>
+                <path d="m20 20-3.5-3.5"/>
+              </svg>
+              <span>Pesquisar</span>
+            </button>
+          </div>
+          <div id="search-error" class="field-error">
+            <span class="error-badge" role="img" aria-label="Erro">!</span>
+            <span>Digite pelo menos 3 caracteres para iniciar a pesquisa.</span>
+          </div>
+        </form>
+      </search>
+    </section>
+
+    <section class="status-grid" aria-label="Estatísticas do índice">
+      <article class="status-card">
+        <span class="status-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 2v6h6"/>
+            <path d="M8 13h8M8 17h5"/>
+          </svg>
+        </span>
+        <div class="status-body">
+          <span class="status-label">Documentos indexados</span>
+          <strong class="status-value tabular" id="stat-documents">—</strong>
         </div>
-        <div class="window-controls" aria-hidden="true">
-          <span>—</span><span>□</span><span class="window-close">×</span>
+      </article>
+
+      <article class="status-card">
+        <span class="status-icon status-icon--eco" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        </span>
+        <div class="status-body">
+          <span class="status-label">Páginas processadas</span>
+          <strong class="status-value tabular" id="stat-pages">—</strong>
         </div>
-      </div>
+      </article>
 
-      <div class="browser-toolbar" aria-hidden="true">
-        <div class="browser-actions">
-          <span class="nav-button">‹</span>
-          <span class="nav-button">›</span>
+      <article class="status-card">
+        <span class="status-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <path d="M16 2v4M8 2v4M3 10h18"/>
+          </svg>
+        </span>
+        <div class="status-body">
+          <span class="status-label">Última publicação</span>
+          <strong class="status-value tabular" id="stat-latest">—</strong>
+          <span class="status-sub tabular" id="stat-latest-meta"></span>
         </div>
-        <div class="address-bar">
-          <span class="lock">●</span>
-          <span>https://editais.gmrsvoiage.com.br</span>
-        </div>
-      </div>
+      </article>
+    </section>
 
-      <div class="app-surface">
-        <header class="app-header">
-          <a class="app-brand" href="./" aria-label="Página inicial do Edital Monitor">
-            <span class="brand-orb" aria-hidden="true"></span>
-            <span>
-              <strong>Edital Monitor</strong>
-              <small>GMRsVoiage</small>
-            </span>
-          </a>
-          <nav class="app-nav" aria-label="Navegação principal">
-            <a href="sobre.html">Sobre</a>
-            <a href="privacidade.html">Privacidade</a>
-          </nav>
-        </header>
-
-        <section class="hero">
-          <p class="eyebrow">Acesso público à informação</p>
-          <h1>Pesquise nos boletins oficiais</h1>
-          <p class="lead">Encontre nomes e termos nas publicações indexadas de forma rápida, gratuita e sem cadastro.</p>
-
-          <form id="search-form" class="search-box">
-            <label for="search-input">Nome ou termo</label>
-            <div class="search-row">
-              <input id="search-input" type="search" minlength="3" maxlength="100" autocomplete="off" placeholder="Ex.: João da Silva" required>
-              <button type="submit">
-                <span aria-hidden="true">⌕</span>
-                Pesquisar
-              </button>
-            </div>
-            <p class="search-help">Os resultados indicam a ocorrência encontrada. Confirme sempre no PDF oficial.</p>
-          </form>
-        </section>
-
-        <section class="status-grid" aria-label="Estatísticas do índice">
-          <article class="status-card">
-            <span class="status-icon" aria-hidden="true">▤</span>
-            <span><small>Documentos</small><strong id="stat-documents">—</strong></span>
-          </article>
-          <article class="status-card">
-            <span class="status-icon green" aria-hidden="true">≡</span>
-            <span><small>Páginas indexadas</small><strong id="stat-pages">—</strong></span>
-          </article>
-          <article class="status-card">
-            <span class="status-icon" aria-hidden="true">◷</span>
-            <span><small>Última publicação</small><strong id="stat-latest">—</strong></span>
-          </article>
-        </section>
-
-        <section id="feedback" class="feedback" aria-live="polite"></section>
-        <section id="results" class="results" aria-live="polite"></section>
-
-        <section class="source-note">
-          <p>Fonte inicial: <a href="https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial" target="_blank" rel="noopener noreferrer">Boletim Oficial da Prefeitura de Telêmaco Borba</a>.</p>
-          <p>Projeto independente, sem vínculo oficial com a Prefeitura. <a href="https://github.com/GMRsVoiage/edital-monitor" target="_blank" rel="noopener noreferrer">Código aberto no GitHub</a>.</p>
-        </section>
-      </div>
+    <section class="results-section" aria-label="Resultados da pesquisa">
+      <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+      <div id="results" class="results"></div>
     </section>
   </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-notes">
+        <p><strong>Fonte inicial:</strong> <a href="https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial" target="_blank" rel="noopener noreferrer">Boletim Oficial da Prefeitura de Telêmaco Borba</a>.</p>
+        <p>Projeto independente e de código aberto, sem vínculo oficial com a Prefeitura.</p>
+      </div>
+      <div class="footer-links">
+        <a href="sobre.html">Sobre</a>
+        <a href="privacidade.html">Privacidade</a>
+        <a href="https://github.com/GMRsVoiage/edital-monitor" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://gmrsvoiage.com.br" target="_blank" rel="noopener noreferrer">GMRsVoiage</a>
+      </div>
+    </div>
+  </footer>
 </body>
 </html>
