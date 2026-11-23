@@ -18,3 +18,9 @@ credentials.json
 secrets.json
 .DS_Store
 Thumbs.db
+
+# Next.js / Frontend
+.next/
+out/
+frontend/node_modules/
+frontend/.env*.local

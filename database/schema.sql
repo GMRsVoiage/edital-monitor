@@ -88,3 +88,67 @@ VALUES (
     'Telêmaco Borba',
     'PR'
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL CHECK (length(trim(name)) >= 2),
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS keyword_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 2 AND 80),
+    description TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '#0b7aa8',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_keyword_groups_user ON keyword_groups(user_id);
+
+CREATE TABLE IF NOT EXISTS saved_keywords (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    group_id INTEGER,
+    keyword TEXT NOT NULL UNIQUE CHECK (length(trim(keyword)) BETWEEN 3 AND 100),
+    description TEXT NOT NULL DEFAULT '',
+    priority TEXT NOT NULL DEFAULT 'media' CHECK (priority IN ('alta', 'media', 'baixa')),
+    target_section TEXT NOT NULL DEFAULT 'geral',
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+    last_searched_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (group_id) REFERENCES keyword_groups(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_saved_keywords_user ON saved_keywords(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_keywords_group ON saved_keywords(group_id);
+CREATE INDEX IF NOT EXISTS idx_saved_keywords_active_priority ON saved_keywords(is_active, priority);
+
+CREATE TABLE IF NOT EXISTS keyword_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    keyword_id INTEGER NOT NULL,
+    document_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'novo' CHECK (status IN ('novo', 'revisado', 'arquivado')),
+    matched_excerpt TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (keyword_id) REFERENCES saved_keywords(id) ON DELETE CASCADE,
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_keyword_alerts_user ON keyword_alerts(user_id);
+CREATE INDEX IF NOT EXISTS idx_keyword_alerts_keyword_doc ON keyword_alerts(keyword_id, document_id);
+CREATE INDEX IF NOT EXISTS idx_keyword_alerts_document ON keyword_alerts(document_id);
+CREATE INDEX IF NOT EXISTS idx_keyword_alerts_status ON keyword_alerts(status);
