@@ -264,6 +264,7 @@ function base64UrlDecodeBytes(segment) {
     for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
+    if (base64UrlEncodeBytes(bytes) !== segment) return null;
     return bytes;
   } catch {
     return null;
