@@ -1,35 +1,167 @@
-const JSON_HEADERS = {
+import { handleAuth, requireAuth } from "./auth.js";
+import { handleCrud } from "./crud.js";
+
+export { requireAuth };
+
+export const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "x-content-type-options": "nosniff",
   "referrer-policy": "no-referrer"
 };
 
-function cors(env) {
+const DEFAULT_ALLOWED_ORIGIN = "https://editais.gmrsvoiage.com.br";
+const LOCAL_DEV_ORIGIN_RE = /^http:\/\/(localhost|127\.0\.0\.1)(?::(\d{1,5}))?$/;
+
+function normalizeOrigin(value) {
+  return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
+}
+
+function parseAllowedOrigins(raw) {
+  return String(raw || "")
+    .split(",")
+    .map(normalizeOrigin)
+    .filter(Boolean);
+}
+
+function isLocalDevOrigin(origin) {
+  const match = LOCAL_DEV_ORIGIN_RE.exec(origin);
+  if (!match) return false;
+  if (!match[2]) return true;
+  const port = Number(match[2]);
+  return port >= 1 && port <= 65535;
+}
+
+export function cors(env, request = null) {
+  const configured = parseAllowedOrigins(env?.ALLOWED_ORIGIN);
+  const requestOrigin = normalizeOrigin(request?.headers?.get("origin") || "");
+
+  let allowOrigin = configured[0] || "*";
+
+  if (configured.includes("*")) {
+    allowOrigin = "*";
+  } else if (requestOrigin) {
+    const hasLocalConfigured = configured.some((origin) => isLocalDevOrigin(origin));
+    const isDefaultOrEmpty =
+      configured.length === 0 ||
+      (configured.length === 1 && configured[0] === DEFAULT_ALLOWED_ORIGIN);
+    const isStandardDevPort3000 =
+      requestOrigin === "http://localhost:3000" ||
+      requestOrigin === "http://127.0.0.1:3000";
+
+    let isLocalHostRequest = false;
+    try {
+      const reqHost = request ? new URL(request.url).hostname : "";
+      isLocalHostRequest = reqHost === "localhost" || reqHost === "127.0.0.1";
+    } catch {
+      isLocalHostRequest = false;
+    }
+
+    if (configured.includes(requestOrigin)) {
+      allowOrigin = requestOrigin;
+    } else if (
+      isLocalDevOrigin(requestOrigin) &&
+      (hasLocalConfigured || isDefaultOrEmpty || (isLocalHostRequest && isStandardDevPort3000))
+    ) {
+      allowOrigin = requestOrigin;
+    }
+  }
+
   return {
-    "access-control-allow-origin": env.ALLOWED_ORIGIN || "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type, authorization"
+    "access-control-allow-origin": allowOrigin,
+    "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "access-control-allow-headers": "content-type, authorization",
+    vary: "Origin"
   };
 }
 
-function json(data, status = 200, headers = {}) {
+export function withCors(response, env, request = null) {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(cors(env, request))) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
+export function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...JSON_HEADERS, ...headers }
   });
 }
 
-function cleanQuery(value) {
+export function cleanQuery(value) {
   return typeof value === "string"
     ? value.normalize("NFKC").replace(/\s+/g, " ").trim()
     : "";
 }
 
-function ftsExpression(query) {
+export function ftsExpression(query) {
   const tokens = query.match(/[\p{L}\p{N}_-]+/gu) || [];
   const useful = tokens.filter((t) => t.length >= 2).slice(0, 12);
   if (!useful.length) return null;
   return useful.map((t) => '"' + t.replaceAll('"', '""') + '"').join(" AND ");
+}
+
+export function parsePositiveId(raw) {
+  if (typeof raw === "number") {
+    return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
+  }
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+export async function readJsonObject(request) {
+  const contentType = request.headers.get("content-type") || "";
+  const mediaType = contentType.split(";")[0].trim().toLowerCase();
+  if (mediaType !== "application/json") {
+    return {
+      ok: false,
+      response: json({ error: "Content-Type deve ser application/json." }, 415)
+    };
+  }
+
+  let rawText;
+  try {
+    rawText = await request.text();
+  } catch {
+    return {
+      ok: false,
+      response: json({ error: "JSON inválido." }, 400)
+    };
+  }
+
+  if (!rawText || !rawText.trim()) {
+    return {
+      ok: false,
+      response: json({ error: "JSON inválido." }, 400)
+    };
+  }
+
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    return {
+      ok: false,
+      response: json({ error: "JSON inválido." }, 400)
+    };
+  }
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return {
+      ok: false,
+      response: json({ error: "O corpo da requisição deve ser um objeto JSON." }, 400)
+    };
+  }
+
+  return { ok: true, data };
 }
 
 async function sha256Hex(input) {
@@ -45,7 +177,8 @@ async function sha256Hex(input) {
 async function authorized(request, env) {
   const expected = env.INGEST_TOKEN || "";
   const raw = request.headers.get("authorization") || "";
-  const supplied = raw.startsWith("Bearer ") ? raw.slice(7) : "";
+  const match = raw.trim().match(/^Bearer\s+(\S+)$/i);
+  const supplied = match ? match[1] : "";
   if (!expected || !supplied) return false;
   const [a, b] = await Promise.all([sha256Hex(expected), sha256Hex(supplied)]);
   let diff = 0;
@@ -78,22 +211,22 @@ async function dailyLimit(request, env) {
 async function search(request, env) {
   const q = cleanQuery(new URL(request.url).searchParams.get("q") || "");
   if (q.length < 3 || q.length > 100) {
-    return json({ error: "A pesquisa deve ter entre 3 e 100 caracteres." }, 400, cors(env));
+    return json({ error: "A pesquisa deve ter entre 3 e 100 caracteres." }, 400);
   }
 
   const expression = ftsExpression(q);
-  if (!expression) return json({ error: "Termo inválido." }, 400, cors(env));
-
-  const usage = await dailyLimit(request, env);
-  if (!usage.allowed) {
-    return json(
-      { error: "Limite diário de pesquisas atingido.", usage },
-      429,
-      { ...cors(env), "retry-after": "3600" }
-    );
-  }
+  if (!expression) return json({ error: "Termo inválido." }, 400);
 
   try {
+    const usage = await dailyLimit(request, env);
+    if (!usage.allowed) {
+      return json(
+        { error: "Limite diário de pesquisas atingido.", usage },
+        429,
+        { "retry-after": "3600" }
+      );
+    }
+
     const result = await env.DB.prepare(
       `SELECT d.edition, d.title, d.published_at, d.pdf_url,
               d.source_page_url, p.page_number,
@@ -109,10 +242,10 @@ async function search(request, env) {
     return json(
       { query: q, total: result.results?.length || 0, results: result.results || [], usage },
       200,
-      { ...cors(env), "cache-control": "no-store" }
+      { "cache-control": "no-store" }
     );
   } catch {
-    return json({ error: "Não foi possível realizar a pesquisa." }, 500, cors(env));
+    return json({ error: "Não foi possível realizar a pesquisa." }, 500);
   }
 }
 
@@ -120,34 +253,46 @@ async function health(env) {
   try {
     const row = await env.DB.prepare("SELECT 1 AS ok").first();
     if (row?.ok !== 1) {
-      return json({ ok: false, database: "error" }, 503, cors(env));
+      return json({ ok: false, database: "error" }, 503);
     }
 
-    return json({ ok: true, database: "ok" }, 200, cors(env));
+    return json({ ok: true, database: "ok" }, 200);
   } catch {
-    return json({ ok: false, database: "error" }, 503, cors(env));
+    return json({ ok: false, database: "error" }, 503);
   }
 }
 
 async function stats(env) {
-  const [docs, pages, latest] = await Promise.all([
-    env.DB.prepare("SELECT COUNT(*) AS total FROM documents").first(),
-    env.DB.prepare("SELECT COUNT(*) AS total FROM pages").first(),
-    env.DB.prepare(
-      "SELECT edition, title, published_at, source_page_url FROM documents ORDER BY published_at DESC, id DESC LIMIT 1"
-    ).first()
-  ]);
-  return { documents: docs?.total || 0, pages: pages?.total || 0, latest: latest || null };
+  try {
+    const [docs, pages, latest] = await Promise.all([
+      env.DB.prepare("SELECT COUNT(*) AS total FROM documents").first(),
+      env.DB.prepare("SELECT COUNT(*) AS total FROM pages").first(),
+      env.DB.prepare(
+        "SELECT edition, title, published_at, source_page_url FROM documents ORDER BY published_at DESC, id DESC LIMIT 1"
+      ).first()
+    ]);
+    return json(
+      { documents: docs?.total || 0, pages: pages?.total || 0, latest: latest || null },
+      200
+    );
+  } catch {
+    return json({ error: "Não foi possível carregar as estatísticas." }, 500);
+  }
 }
 
 async function known(request, env) {
   if (!(await authorized(request, env))) return json({ error: "Não autorizado." }, 401);
   const source = new URL(request.url).searchParams.get("source_page_url");
   if (!source || source.length > 2000) return json({ error: "source_page_url inválida." }, 400);
-  const row = await env.DB.prepare(
-    "SELECT id, sha256, updated_at FROM documents WHERE source_page_url = ?"
-  ).bind(source).first();
-  return json({ exists: !!row, document: row || null });
+
+  try {
+    const row = await env.DB.prepare(
+      "SELECT id, sha256, updated_at FROM documents WHERE source_page_url = ?"
+    ).bind(source).first();
+    return json({ exists: !!row, document: row || null });
+  } catch {
+    return json({ error: "Não foi possível consultar o documento." }, 500);
+  }
 }
 
 function isHttpUrl(value) {
@@ -161,7 +306,7 @@ function isHttpUrl(value) {
 
 async function ingest(request, env) {
   if (!(await authorized(request, env))) return json({ error: "Não autorizado." }, 401);
-  if (!(request.headers.get("content-type") || "").includes("application/json")) {
+  if (!(request.headers.get("content-type") || "").toLowerCase().includes("application/json")) {
     return json({ error: "Content-Type deve ser application/json." }, 415);
   }
 
@@ -184,79 +329,102 @@ async function ingest(request, env) {
     }
   }
 
-  await env.DB.prepare(
-    `INSERT INTO documents (
-       source_id, source_page_url, pdf_url, edition, title, published_at,
-       sha256, page_count, extraction_method, updated_at
-     ) VALUES (
-       (SELECT id FROM sources WHERE listing_url = ? LIMIT 1),
-       ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
-     )
-     ON CONFLICT(source_page_url) DO UPDATE SET
-       pdf_url = excluded.pdf_url,
-       edition = excluded.edition,
-       title = excluded.title,
-       published_at = excluded.published_at,
-       sha256 = excluded.sha256,
-       page_count = excluded.page_count,
-       extraction_method = excluded.extraction_method,
-       updated_at = CURRENT_TIMESTAMP`
-  ).bind(
-    "https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial",
-    p.source_page_url, p.pdf_url, p.edition || null, p.title,
-    p.published_at || null, p.sha256 || null, pages.length,
-    p.extraction_method || "native"
-  ).run();
+  try {
+    await env.DB.prepare(
+      `INSERT INTO documents (
+         source_id, source_page_url, pdf_url, edition, title, published_at,
+         sha256, page_count, extraction_method, updated_at
+       ) VALUES (
+         (SELECT id FROM sources WHERE listing_url = ? LIMIT 1),
+         ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+       )
+       ON CONFLICT(source_page_url) DO UPDATE SET
+         pdf_url = excluded.pdf_url,
+         edition = excluded.edition,
+         title = excluded.title,
+         published_at = excluded.published_at,
+         sha256 = excluded.sha256,
+         page_count = excluded.page_count,
+         extraction_method = excluded.extraction_method,
+         updated_at = CURRENT_TIMESTAMP`
+    ).bind(
+      "https://telemacoborba.pr.gov.br/index.php/informacoes/boletim-oficial",
+      p.source_page_url, p.pdf_url, p.edition || null, p.title,
+      p.published_at || null, p.sha256 || null, pages.length,
+      p.extraction_method || "native"
+    ).run();
 
-  const doc = await env.DB.prepare(
-    "SELECT id FROM documents WHERE source_page_url = ?"
-  ).bind(p.source_page_url).first();
+    const doc = await env.DB.prepare(
+      "SELECT id FROM documents WHERE source_page_url = ?"
+    ).bind(p.source_page_url).first();
 
-  if (!doc?.id) return json({ error: "Falha após ingestão." }, 500);
+    if (!doc?.id) return json({ error: "Falha após ingestão." }, 500);
 
-  await env.DB.prepare("DELETE FROM pages WHERE document_id = ?").bind(doc.id).run();
+    await env.DB.prepare("DELETE FROM pages WHERE document_id = ?").bind(doc.id).run();
 
-  // D1 Free permite até 100 parâmetros por query e 50 queries D1 por
-  // invocação. Agrupamos até 33 páginas por INSERT (99 parâmetros) para
-  // suportar PDFs grandes sem gerar uma query separada para cada página.
-  const pageChunks = [];
-  for (let i = 0; i < pages.length; i += 33) {
-    pageChunks.push(pages.slice(i, i + 33));
-  }
+    // D1 Free permite até 100 parâmetros por query e 50 queries D1 por
+    // invocação. Agrupamos até 33 páginas por INSERT (99 parâmetros) para
+    // suportar PDFs grandes sem gerar uma query separada para cada página.
+    const pageChunks = [];
+    for (let i = 0; i < pages.length; i += 33) {
+      pageChunks.push(pages.slice(i, i + 33));
+    }
 
-  for (const chunk of pageChunks) {
-    const placeholders = chunk.map(() => "(?, ?, ?)").join(", ");
-    const values = [];
-    for (const page of chunk) {
-      values.push(doc.id, page.page_number, page.text);
+    for (const chunk of pageChunks) {
+      const placeholders = chunk.map(() => "(?, ?, ?)").join(", ");
+      const values = [];
+      for (const page of chunk) {
+        values.push(doc.id, page.page_number, page.text);
+      }
+
+      await env.DB.prepare(
+        `INSERT INTO pages (document_id, page_number, text) VALUES ${placeholders}`
+      ).bind(...values).run();
     }
 
     await env.DB.prepare(
-      `INSERT INTO pages (document_id, page_number, text) VALUES ${placeholders}`
-    ).bind(...values).run();
+      "INSERT INTO ingest_log (source_page_url, status, detail) VALUES (?, 'success', ?)"
+    ).bind(p.source_page_url, pages.length + " páginas").run();
+
+    return json({ ok: true, document_id: doc.id, pages: pages.length }, 201);
+  } catch {
+    return json({ error: "Falha ao gravar documento." }, 500);
   }
-
-  await env.DB.prepare(
-    "INSERT INTO ingest_log (source_page_url, status, detail) VALUES (?, 'success', ?)"
-  ).bind(p.source_page_url, pages.length + " páginas").run();
-
-  return json({ ok: true, document_id: doc.id, pages: pages.length }, 201);
 }
 
 export default {
   async fetch(request, env) {
-    const path = new URL(request.url).pathname;
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(env) });
+    let response;
+    try {
+      const path = new URL(request.url).pathname;
 
-    if (request.method === "GET" && path === "/") {
-      return json({ name: "Edital Monitor API", version: "0.1.0" }, 200, cors(env));
+      if (request.method === "OPTIONS") {
+        response = new Response(null, { status: 204 });
+      } else if (request.method === "GET" && path === "/") {
+        response = json({ name: "Edital Monitor API", version: "0.1.0" }, 200);
+      } else if (request.method === "GET" && path === "/health") {
+        response = await health(env);
+      } else if (request.method === "GET" && path === "/stats") {
+        response = await stats(env);
+      } else if (request.method === "GET" && path === "/search") {
+        response = await search(request, env);
+      } else if (request.method === "GET" && path === "/admin/known") {
+        response = await known(request, env);
+      } else if (request.method === "POST" && path === "/admin/ingest") {
+        response = await ingest(request, env);
+      } else {
+        const authResponse = await handleAuth(request, env, path);
+        if (authResponse) {
+          response = authResponse;
+        } else {
+          const crudResponse = await handleCrud(request, env, path);
+          response = crudResponse || json({ error: "Rota não encontrada." }, 404);
+        }
+      }
+    } catch {
+      response = json({ error: "Erro interno do servidor." }, 500);
     }
-    if (request.method === "GET" && path === "/health") return health(env);
-    if (request.method === "GET" && path === "/stats") return json(await stats(env), 200, cors(env));
-    if (request.method === "GET" && path === "/search") return search(request, env);
-    if (request.method === "GET" && path === "/admin/known") return known(request, env);
-    if (request.method === "POST" && path === "/admin/ingest") return ingest(request, env);
 
-    return json({ error: "Rota não encontrada." }, 404, cors(env));
+    return withCors(response, env, request);
   }
 };
